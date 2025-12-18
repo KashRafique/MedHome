@@ -2,13 +2,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { COLORS } from '../../constants/colors';
+import { getImageUrl } from '../../utils/imageUtils';
 
 const CourseCard = ({ course, onPress, onEnroll, showEnrollButton = true }) => {
+  const thumbnailUrl = getImageUrl(course.thumbnail || course.image);
+  
   return (
     <View style={styles.card}>
       {/* Course Thumbnail */}
       <Image
-        source={{ uri: course.thumbnail || course.image }}
+        source={{ uri: thumbnailUrl }}
         style={styles.thumbnail}
       />
 

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { getCourseContent } from '../../services/courseService';
+import { getImageUrl } from '../../utils/imageUtils';
 
 const CourseDetailScreen = ({ route, navigation }) => {
   const { course: initialCourse } = route.params;
@@ -19,10 +20,12 @@ const CourseDetailScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [expandedModules, setExpandedModules] = useState({});
   
-  // Check enrollment status
-  const enrollmentStatus = course.enrollmentStatus || 'none';
+  // Get enrollment status from course state (will be updated after fetch)
+  // Use initial enrollment status as fallback
+  const enrollmentStatus = course.enrollmentStatus || initialCourse.enrollmentStatus || 'none';
   const isApproved = enrollmentStatus === 'approved';
   const isPending = enrollmentStatus === 'pending';
+  const isEnrolled = course.enrolled !== undefined ? course.enrolled : (initialCourse.enrolled || false);
 
   useEffect(() => {
     // Fetch full course details with modules and lessons from backend
@@ -34,13 +37,24 @@ const CourseDetailScreen = ({ route, navigation }) => {
       setLoading(true);
       const courseId = initialCourse._id || initialCourse.id;
       console.log('📱 Frontend: Fetching course content for ID:', courseId);
-      console.log('📱 Frontend: Course object:', initialCourse);
+      console.log('📱 Frontend: Initial enrollment status:', initialCourse.enrollmentStatus);
+      console.log('📱 Frontend: Initial enrolled flag:', initialCourse.enrolled);
       
       if (courseId) {
         const courseData = await getCourseContent(courseId);
         console.log('📱 Frontend: Received course data:', courseData.title);
+        console.log('📱 Frontend: Enrollment status from API:', courseData.enrollmentStatus);
+        console.log('📱 Frontend: Enrolled flag from API:', courseData.enrolled);
         console.log('📱 Frontend: Modules count:', courseData.modules?.length);
-        setCourse(courseData);
+        
+        // Preserve enrollment status from API response
+        // The backend now returns enrollmentStatus and enrolled flag
+        setCourse({
+          ...courseData,
+          // Ensure enrollment status is preserved (use API response, fallback to initial)
+          enrollmentStatus: courseData.enrollmentStatus || initialCourse.enrollmentStatus || null,
+          enrolled: courseData.enrolled !== undefined ? courseData.enrolled : (initialCourse.enrolled || false)
+        });
       } else {
         console.error('📱 Frontend: No course ID found!');
         Alert.alert('Error', 'Invalid course - no ID found');
@@ -66,12 +80,19 @@ const CourseDetailScreen = ({ route, navigation }) => {
   };
 
   const handleLessonPress = lesson => {
-    // Check if user is approved to access content
-    if (!isApproved) {
+    // Check if lesson is accessible (uses backend isAccessible flag or falls back to isApproved)
+    const lessonAccessible = lesson.isAccessible !== undefined ? lesson.isAccessible : isApproved;
+    
+    if (!lessonAccessible) {
       if (isPending) {
         Alert.alert(
           'Pending Approval',
           'Your enrollment is pending admin approval. You will be able to access course content once approved.',
+        );
+      } else if (isEnrolled) {
+        Alert.alert(
+          'Access Denied',
+          'Your enrollment status does not allow access to this content. Please contact admin if you believe this is an error.'
         );
       } else {
         Alert.alert('Enrollment Required', 'Please enroll in this course to access content.');
@@ -122,7 +143,7 @@ const CourseDetailScreen = ({ route, navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Course Hero */}
-        <Image source={{ uri: course.thumbnail }} style={styles.thumbnail} />
+        <Image source={{ uri: getImageUrl(course.thumbnail) }} style={styles.thumbnail} />
 
         <View style={styles.content}>
           {/* Course Info */}
@@ -146,7 +167,7 @@ const CourseDetailScreen = ({ route, navigation }) => {
           </View>
 
           {/* Enroll Button */}
-          {!course.enrolled && (
+          {!isEnrolled && (
             <TouchableOpacity
               style={styles.enrollButton}
               onPress={handleEnroll}
@@ -158,13 +179,13 @@ const CourseDetailScreen = ({ route, navigation }) => {
           )}
 
           {/* Enrollment Status Banners */}
-          {course.enrolled && isApproved && (
+          {isEnrolled && isApproved && (
             <View style={styles.enrolledBanner}>
               <Text style={styles.enrolledBannerText}>✓ You are enrolled in this course</Text>
             </View>
           )}
 
-          {course.enrolled && isPending && (
+          {isEnrolled && isPending && (
             <View style={styles.pendingBanner}>
               <Text style={styles.pendingBannerText}>⏳ Enrollment Pending Approval</Text>
               <Text style={styles.pendingBannerSubtext}>
@@ -173,7 +194,7 @@ const CourseDetailScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {course.enrolled && enrollmentStatus === 'rejected' && (
+          {isEnrolled && enrollmentStatus === 'rejected' && (
             <View style={styles.rejectedBanner}>
               <Text style={styles.rejectedBannerText}>✕ Enrollment Rejected</Text>
               <Text style={styles.rejectedBannerSubtext}>
@@ -218,7 +239,10 @@ const CourseDetailScreen = ({ route, navigation }) => {
                             .map(lesson => {
                               const lessonId = lesson._id || lesson.id;
                               const lessonType = lesson.video ? 'video' : lesson.pdfUrl ? 'pdf' : 'unknown';
-                              const isLocked = !isApproved;
+                              // Use isAccessible from backend (handles preview lessons and approved enrollment)
+                              // Fallback to isApproved check if isAccessible is not provided
+                              const isAccessible = lesson.isAccessible !== undefined ? lesson.isAccessible : isApproved;
+                              const isLocked = !isAccessible;
                               return (
                                 <TouchableOpacity
                                   key={lessonId}

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { getMyEnrollments } from '../../services/enrollmentService';
+import { getImageUrl } from '../../utils/imageUtils';
 
 const MyCoursesScreen = ({ navigation }) => {
     const [enrollments, setEnrollments] = useState([]);
@@ -85,7 +86,7 @@ const MyCoursesScreen = ({ navigation }) => {
                     } 
                 })}
                 activeOpacity={0.9}>
-                <Image source={{ uri: course.thumbnail || course.image }} style={styles.thumbnail} />
+                <Image source={{ uri: getImageUrl(course.thumbnail || course.image) }} style={styles.thumbnail} />
                 <View style={styles.content}>
                     <Text style={styles.title} numberOfLines={2}>
                         {course.title}
