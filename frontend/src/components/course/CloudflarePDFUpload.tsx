@@ -1,5 +1,12 @@
+// @ts-nocheck
+// NOTE: This is a web-only component. It uses web APIs (HTMLInputElement, FormData, etc.)
+// and should not be used in React Native. It's kept here for reference only.
+// The actual web version exists in webfrontend/src/components/course/CloudflarePDFUpload.tsx
+
 import React, { useState } from 'react';
+// @ts-ignore - FontAwesome web packages not available in React Native
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+// @ts-ignore - FontAwesome web packages not available in React Native
 import { faCloudUploadAlt, faFile, faCheck, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import api from '../../utils/axios';
 

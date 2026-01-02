@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import { Course, CourseState, ICourseData, IModuleData, IModuleDocument, ICourseDocument } from '../models/Course';
+import { Enrollment } from '../models/Enrollment';
 import { AuthRequest } from '../middleware/auth';
 import { validateCourse, validateModule, validateCourseStateUpdate, validateCourseActivation } from '../validators/courseValidator';
 import fs from 'fs';
@@ -20,10 +21,26 @@ interface CourseWithPopulatedFields extends Omit<ICourseDocument, 'createdBy'> {
   createdBy: PopulatedCreatedBy;
 }
 
-// Get all courses (admin only)
+// Get all courses (admin only) or active courses for regular users
 export const getAllCourses = async (req: Request, res: Response): Promise<void> => {
   try {
     const filter: any = {};
+    
+    // Filter by state if provided (e.g., ?state=ACTIVE)
+    // If state=ACTIVE is provided, only show active courses to users
+    if (req.query.state) {
+      filter.state = req.query.state;
+    } else {
+      // If no state filter is provided, check if user is admin
+      // Non-admin users should only see active courses by default
+      const authReq = req as AuthRequest;
+      const isAdmin = authReq.user?.role === 'admin';
+      if (!isAdmin) {
+        // Regular users only see active courses
+        filter.state = CourseState.ACTIVE;
+      }
+      // Admins see all courses when no state filter is provided
+    }
     
     if (req.query.category) {
       filter.categories = req.query.category;
@@ -93,33 +110,106 @@ export const getPublicCourses = async (req: Request, res: Response): Promise<voi
 // Get course details
 export const getCourseDetails = async (req: Request, res: Response): Promise<void> => {
   try {
-    const course = await Course.findById(req.params.courseId)
-      .populate('modules')
+    const courseId = req.params.courseId;
+    console.log('🔍 Fetching course details for ID:', courseId);
+    console.log('👤 User:', (req as AuthRequest).user?._id);
+    console.log('👤 User Role:', (req as AuthRequest).user?.role);
+    
+    // Validate courseId format
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      console.log('❌ Invalid course ID format:', courseId);
+      res.status(400).json({ message: 'Invalid course ID format' });
+      return;
+    }
+
+    console.log('✅ Course ID format valid, querying database...');
+    
+    // Fetch course with populated modules and lessons
+    const course = await Course.findById(courseId)
       .populate({
         path: 'createdBy',
         select: 'fullName email'
       })
+      .populate({
+        path: 'modules',
+        select: 'title description order',
+        populate: {
+          path: 'lessons',
+          select: 'title description order duration isPreview video videoSource pdfUrl ebookName'
+        }
+      })
       .populate('categories')
-      .populate('tags').lean();
+      .populate('tags')
+      .lean();
       
     if (!course) {
+      console.log('❌ Course not found in database:', courseId);
       res.status(404).json({ message: 'Course not found' });
       return;
     }
 
+    console.log('✅ Course found:', course.title);
+    console.log('📦 State:', course.state);
+    console.log('📦 Modules count:', course.modules?.length || 0);
+    if (course.modules && course.modules.length > 0) {
+      console.log('📦 First module lessons:', course.modules[0].lessons?.length || 0);
+    }
+
     // Check if user is admin (through auth middleware)
     const isAdmin = (req as AuthRequest).user?.role === 'admin';
+    console.log('🔑 Is admin:', isAdmin);
 
     // If course is not active and user is not admin, don't show details
     if (course.state !== CourseState.ACTIVE && !isAdmin) {
+      console.log('⚠️  Course not active and user is not admin');
       res.status(403).json({ message: 'Course is not available' });
       return;
     }
 
-    res.json(course);
+    // Check if user is enrolled and get enrollment status
+    let enrollmentStatus = null;
+    let isEnrolled = false;
+    if ((req as AuthRequest).user) {
+      const enrollment = await Enrollment.findOne({
+        student: (req as AuthRequest).user!._id,
+        course: courseId
+      }).select('status');
+      
+      if (enrollment) {
+        enrollmentStatus = enrollment.status;
+        isEnrolled = true;
+        console.log('✅ User enrollment found, status:', enrollmentStatus);
+      } else {
+        console.log('ℹ️  User not enrolled in this course');
+      }
+    }
+
+    // Format response with enrollment status and lesson accessibility
+    const response = {
+      ...course,
+      enrollmentStatus,
+      enrolled: isEnrolled,
+      modules: course.modules?.map((module: any) => ({
+        ...module,
+        lessons: module.lessons?.map((lesson: any) => ({
+          ...lesson,
+          isAccessible: lesson.isPreview || enrollmentStatus === 'approved' || isAdmin
+        }))
+      }))
+    };
+
+    console.log('✅ Sending course data to client with enrollment status:', enrollmentStatus);
+    res.json(response);
   } catch (error) {
-    console.error('Error fetching course details:', error);
-    res.status(500).json({ message: 'Error fetching course details' });
+    console.error('❌ ERROR in getCourseDetails:', error);
+    console.error('📍 Error name:', error instanceof Error ? error.name : 'Unknown');
+    console.error('📍 Error message:', error instanceof Error ? error.message : 'Unknown');
+    console.error('📍 Error stack:', error instanceof Error ? error.stack : 'Unknown error');
+    res.status(500).json({ 
+      message: 'Error fetching course details',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorName: error instanceof Error ? error.name : 'Unknown'
+    });
   }
 };
 
@@ -456,6 +546,7 @@ export const cloneCourse = async (req: Request, res: Response): Promise<void> =>
           order: lesson.order,
           duration: lesson.duration,
           video: lesson.video,
+          videoSource: lesson.videoSource,
           attachments: lesson.attachments || [],
           isPreview: lesson.isPreview
         }))

@@ -86,7 +86,17 @@ const MyCoursesScreen = ({ navigation }) => {
                     } 
                 })}
                 activeOpacity={0.9}>
-                <Image source={{ uri: getImageUrl(course.thumbnail || course.image) }} style={styles.thumbnail} />
+                {getImageUrl(course.thumbnail || course.image) ? (
+                    <Image 
+                        source={{ uri: getImageUrl(course.thumbnail || course.image) }} 
+                        style={styles.thumbnail}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <View style={[styles.thumbnail, styles.placeholderThumbnail]}>
+                        <Text style={styles.placeholderText}>📚</Text>
+                    </View>
+                )}
                 <View style={styles.content}>
                     <Text style={styles.title} numberOfLines={2}>
                         {course.title}
@@ -185,6 +195,14 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         backgroundColor: COLORS.borderLight,
+    },
+    placeholderThumbnail: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: COLORS.borderLight,
+    },
+    placeholderText: {
+        fontSize: 32,
     },
     content: {
         flex: 1,

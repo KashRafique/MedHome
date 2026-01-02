@@ -13,12 +13,14 @@ import {
 import { COLORS } from '../../constants/colors';
 import { getCourseContent } from '../../services/courseService';
 import { getImageUrl } from '../../utils/imageUtils';
+import PaymentModal from '../../components/course/PaymentModal';
 
 const CourseDetailScreen = ({ route, navigation }) => {
   const { course: initialCourse } = route.params;
   const [course, setCourse] = useState(initialCourse);
   const [loading, setLoading] = useState(true);
   const [expandedModules, setExpandedModules] = useState({});
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   
   // Get enrollment status from course state (will be updated after fetch)
   // Use initial enrollment status as fallback
@@ -107,8 +109,11 @@ const CourseDetailScreen = ({ route, navigation }) => {
         lesson: {
           ...lesson,
           videoUrl: lesson.video,
+          video: lesson.video, // Keep original video field
+          videoSource: lesson.videoSource, // Include videoSource for URL construction
           title: lesson.title,
         }, 
+        courseId: course.id || course._id, // Fix: Pass courseId
         courseTitle: course.title 
       });
     } else if (lesson.pdfUrl) {
@@ -126,7 +131,13 @@ const CourseDetailScreen = ({ route, navigation }) => {
   };
 
   const handleEnroll = () => {
-    navigation.navigate('Payment', { course });
+    setPaymentModalVisible(true);
+  };
+
+  const handleEnrollmentSuccess = () => {
+    // Refresh course data to get updated enrollment status
+    fetchCourseContent();
+    setPaymentModalVisible(false);
   };
 
   return (
@@ -296,6 +307,14 @@ const CourseDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        visible={paymentModalVisible}
+        onClose={() => setPaymentModalVisible(false)}
+        course={course}
+        onSuccess={handleEnrollmentSuccess}
+      />
     </View>
   );
 };

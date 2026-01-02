@@ -8,8 +8,18 @@ import { Course, ICourseDocument } from '../models/Course';
 import { sendNotification } from '../utils/notification';
 import { Voucher } from '../models/Voucher';
 import { VoucherUsage } from '../models/VoucherUsage';
+import { normalizeFilePath } from '../utils/pathHelpers';
 import fs from 'fs';
 import path from 'path';
+
+// Helper function to normalize payment receipt paths before sending to client
+const normalizePaymentPaths = (payment: any) => {
+  const paymentObj = payment.toObject ? payment.toObject() : payment;
+  if (paymentObj.receiptPath) {
+    paymentObj.receiptPath = normalizeFilePath(paymentObj.receiptPath);
+  }
+  return paymentObj;
+};
 
 // Create a new payment
 export const createPayment = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -86,7 +96,7 @@ export const createPayment = async (req: AuthRequest, res: Response): Promise<vo
       bankName,
       accountHolderNumber,
       transactionId,
-      receiptPath: file.path,
+      receiptPath: normalizeFilePath(file.path),
       statusHistory: [{
         status: PaymentStatus.PENDING,
         updatedBy: new Types.ObjectId(req.user._id),
@@ -138,7 +148,7 @@ export const createPayment = async (req: AuthRequest, res: Response): Promise<vo
       );
     }
 
-    res.status(201).json(payment);
+    res.status(201).json(normalizePaymentPaths(payment));
   } catch (error) {
     res.status(500).json({ message: 'Error creating payment', error });
   }
@@ -203,7 +213,7 @@ export const updatePaymentStatus = async (req: AuthRequest, res: Response): Prom
       `Your payment status has been updated to ${status}${reason ? ': ' + reason : ''}`
     );
 
-    res.status(200).json(payment);
+    res.status(200).json(normalizePaymentPaths(payment));
   } catch (error) {
     res.status(500).json({ message: 'Error updating payment status', error });
   }
@@ -262,8 +272,11 @@ export const getPayments = async (req: AuthRequest, res: Response): Promise<void
       .skip(skip)
       .limit(limit);
 
+    // Normalize file paths for all payments
+    const normalizedPayments = payments.map(payment => normalizePaymentPaths(payment));
+
     res.status(200).json({
-      payments,
+      payments: normalizedPayments,
       pagination: {
         total,
         page,
@@ -310,7 +323,7 @@ export const getPaymentById = async (req: AuthRequest, res: Response): Promise<v
       }
     }
 
-    res.status(200).json(payment);
+    res.status(200).json(normalizePaymentPaths(payment));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching payment', error });
   }
@@ -349,7 +362,7 @@ export const reuploadPaymentReceipt = async (req: AuthRequest, res: Response): P
       return;
     }
 
-    payment.receiptPath = file.path;
+    payment.receiptPath = normalizeFilePath(file.path);
     payment.status = PaymentStatus.PENDING;
     payment.statusHistory.push({
       status: PaymentStatus.PENDING,
@@ -372,7 +385,7 @@ export const reuploadPaymentReceipt = async (req: AuthRequest, res: Response): P
       );
     }
 
-    res.status(200).json(payment);
+    res.status(200).json(normalizePaymentPaths(payment));
   } catch (error) {
     res.status(500).json({ message: 'Error reuploading payment receipt', error });
   }

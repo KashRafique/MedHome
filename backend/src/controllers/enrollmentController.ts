@@ -10,6 +10,7 @@ import { Payment, PaymentStatus, PaymentMethod } from '../models/Payment';
 import { validateVoucherForCourse } from './voucherController';
 import { Voucher } from '../models/Voucher';
 import { VoucherUsage } from '../models/VoucherUsage';
+import { normalizeFilePath } from '../utils/pathHelpers';
 
 // Interface for User document
 interface UserDocument {
@@ -82,7 +83,7 @@ export const enrollInCourse = async (req: AuthRequest, res: Response): Promise<v
     const enrollment = new Enrollment({
       student: req.user._id,
       course: courseId,
-      paymentReceipt: file.path,
+      paymentReceipt: normalizeFilePath(file.path),
       voucherCode: voucherCode ? voucherCode.trim().toUpperCase() : undefined,
       status: EnrollmentStatus.PENDING
     });
@@ -216,9 +217,14 @@ export const getEnrollments = async (req: AuthRequest, res: Response): Promise<v
         // Convert enrollment to the format expected by frontend
         const enrollmentData: any = enrollment.toObject();
         
+        // Normalize enrollment's paymentReceipt (defensive for old records)
+        if (enrollmentData.paymentReceipt) {
+          enrollmentData.paymentReceipt = normalizeFilePath(enrollmentData.paymentReceipt);
+        }
+        
         // Add payment information if it exists
         if (payment) {
-          enrollmentData.paymentReceipt = payment.receiptPath;
+          enrollmentData.paymentReceipt = normalizeFilePath(payment.receiptPath);
           enrollmentData.paymentMethod = payment.paymentMethod;
           enrollmentData.paymentStatus = payment.status;
           enrollmentData.paymentDate = payment.paymentDate;
@@ -308,7 +314,7 @@ export const getMyEnrollments = async (req: AuthRequest, res: Response): Promise
 
     // Populate 'state' so we can filter by it
     const enrollments = await Enrollment.find({ student: req.user._id })
-      .populate('course', 'title description price image state')
+      .populate('course', 'title description price thumbnail banner state')
       .populate('student', 'name email')
       .sort({ enrollmentDate: -1 });
 
@@ -330,9 +336,14 @@ export const getMyEnrollments = async (req: AuthRequest, res: Response): Promise
         // Convert enrollment to the format expected by frontend
         const enrollmentData: any = enrollment.toObject();
         
+        // Normalize enrollment's paymentReceipt (defensive for old records)
+        if (enrollmentData.paymentReceipt) {
+          enrollmentData.paymentReceipt = normalizeFilePath(enrollmentData.paymentReceipt);
+        }
+        
         // Add payment information if it exists
         if (payment) {
-          enrollmentData.paymentReceipt = payment.receiptPath;
+          enrollmentData.paymentReceipt = normalizeFilePath(payment.receiptPath);
           enrollmentData.paymentMethod = payment.paymentMethod;
           enrollmentData.paymentStatus = payment.status;
           enrollmentData.paymentDate = payment.paymentDate;

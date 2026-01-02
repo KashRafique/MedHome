@@ -116,14 +116,16 @@ export const PaymentsPage: React.FC = () => {
       return receiptPath;
     }
     
-    // Extract just the filename part if it includes the uploads directory
+    // Normalize the path: convert backslashes to forward slashes and remove uploads prefix
     let path = receiptPath;
-    if (path.includes('uploads/')) {
-      // Remove 'uploads/' from the path since the API endpoint already includes it
-      path = path.replace('uploads/', '');
-    }
     
-    // Ensure there's no double slash when joining paths
+    // Convert Windows backslashes to forward slashes
+    path = path.replace(/\\/g, '/');
+    
+    // Remove 'uploads/' or 'uploads\' prefix if present (handles both forward and backslashes)
+    path = path.replace(/^uploads[/\\]/, '');
+    
+    // Ensure there's no leading slash when joining paths
     path = path.startsWith('/') ? path.substring(1) : path;
     
     // Use the correct API endpoint for accessing uploaded files with relative URL

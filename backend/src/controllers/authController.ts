@@ -55,6 +55,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, fullName, whatsappNumber, role = UserRole.STUDENT } = req.body;
 
+    // Validate required fields
+    if (!email || !password || !fullName || !whatsappNumber) {
+      res.status(400).json({ 
+        message: 'All fields are required: email, password, fullName, whatsappNumber' 
+      });
+      return;
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -75,14 +83,46 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const verificationToken = user.createEmailVerificationToken();
     await user.save();
 
-    // Send verification email
-    await sendVerificationEmail(user.email, user.fullName, verificationToken);
+    // Send verification email (non-blocking - don't fail registration if email fails)
+    sendVerificationEmail(user.email, user.fullName, verificationToken)
+      .then(() => {
+        console.log('Verification email sent successfully to:', user.email);
+      })
+      .catch((emailError) => {
+        console.error('Failed to send verification email (user still registered):', emailError);
+        // User is already saved, so we don't throw the error
+      });
 
     res.status(201).json({
       message: 'Registration successful. Please check your email to verify your account.'
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Error registering user', error });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((err: any) => err.message);
+      res.status(400).json({ 
+        message: 'Validation error', 
+        errors: messages 
+      });
+      return;
+    }
+    
+    // Handle duplicate key error (email already exists)
+    if (error.code === 11000) {
+      res.status(400).json({ 
+        message: 'Email already registered' 
+      });
+      return;
+    }
+    
+    // Handle other errors
+    const errorMessage = error.message || 'Error registering user';
+    res.status(500).json({ 
+      message: errorMessage,
+      ...(process.env.NODE_ENV === 'development' && { details: error.toString() })
+    });
   }
 };
 

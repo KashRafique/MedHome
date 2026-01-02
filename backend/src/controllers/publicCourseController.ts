@@ -42,14 +42,29 @@ export const getPublicCourses = async (
 ): Promise<void> => {
   try {
     console.log('Fetching public courses...');
+    // Fetch courses with modules to check if they have content
     const courses = await Course.find({ state: CourseState.ACTIVE })
-      .select('title description price thumbnail banner enrollmentCount')
+      .select('title description price thumbnail banner enrollmentCount modules')
       .lean();
 
     console.log('Found courses:', courses.length);
 
+    // Filter out courses that don't have any modules with lessons
+    const coursesWithContent = courses.filter(course => {
+      // Check if course has at least one module
+      if (!course.modules || course.modules.length === 0) {
+        return false;
+      }
+      // Check if at least one module has at least one lesson
+      return course.modules.some((module: any) => 
+        module.lessons && module.lessons.length > 0
+      );
+    });
+
+    console.log('Courses with content:', coursesWithContent.length);
+
     // Transform courses to include enrollment status
-    const publicCourses: PublicCourseResponse[] = courses.map(course => ({
+    const publicCourses: PublicCourseResponse[] = coursesWithContent.map(course => ({
       _id: course._id,
       title: course.title,
       description: course.description,
@@ -136,7 +151,7 @@ export const getPublicCourseDetails = async (
       select: 'title description order',
       populate: {
         path: 'lessons',
-        select: 'title description order duration isPreview video pdfUrl ebookName'
+        select: 'title description order duration isPreview video videoSource pdfUrl ebookName'
       }
     });
 
@@ -180,6 +195,7 @@ export const getPublicCourseDetails = async (
           duration: lesson.duration,
           isPreview: lesson.isPreview,
           video: lesson.video,
+          videoSource: lesson.videoSource,
           isAccessible: lesson.isPreview || enrollmentStatus === 'approved',
           pdfUrl: lesson.pdfUrl,
           ebookName: lesson.ebookName

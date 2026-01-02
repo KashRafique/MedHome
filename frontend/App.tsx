@@ -62,7 +62,7 @@ function App() {
     };
   }, []);
 
-  const handleDeepLink = ({ url }) => {
+  const handleDeepLink = ({ url }: { url: string }) => {
     console.log('🔗 Deep link received:', url);
 
     if (!url) return;
@@ -125,7 +125,13 @@ function App() {
         {/* <Stack.Screen name="Home" component={HomeScreen} /> - Replaced by Drawer */}
         <Stack.Screen name="CourseDetail" component={CourseDetailScreen} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} />
-        <Stack.Screen name="PDFViewer" component={PDFViewerScreen} />
+        <Stack.Screen 
+          name="PDFViewer" 
+          component={PDFViewerScreen}
+          options={{
+            gestureEnabled: false, // Prevent swipe back during PDF loading
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

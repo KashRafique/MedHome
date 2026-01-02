@@ -25,11 +25,12 @@ import quizRoutes from './routes/quizRoutes';
 import paypalRoutes from './routes/paypalRoutes';
 import voucherRoutes from './routes/voucherRoutes';
 import { errorHandler } from './middleware/errorHandler';
+import courseProgressRoutes from './routes/courseProgressRoutes';
 
 config();
 
 export const app: Express = express();
-const port = process.env.PORT || 5000;
+const port = parseInt(process.env.PORT || '5000', 10);
 
 // Middleware
 app.use(cors());
@@ -64,6 +65,7 @@ app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/courses', courseProgressRoutes);
 app.use('/api/lessons', lessonRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
@@ -114,8 +116,10 @@ const startServer = async () => {
     if (!process.env.DISABLE_DB_CONNECT) {
       await connectDB();
     }
-    app.listen(port, () => {
-      console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`⚡️[server]: Server is running at http://0.0.0.0:${port}`);
+      console.log(`⚡️[server]: Accessible at http://localhost:${port}`);
+      console.log(`⚡️[server]: Accessible at http://192.168.10.2:${port}`);
     });
   } catch (error) {
     console.error('Error starting server:', error);

@@ -1,0 +1,54 @@
+MongoDB Import Checklist - "lms" Database
+==========================================
+
+Backup Location: C:\Users\lenovo\Downloads\lms_backup
+Target Database: lms
+Total Collections: 16
+
+IMPORT PROGRESS:
+[ ] 1. blogs (0.01 MB)
+[ ] 2. categories (0 MB)
+[ ] 3. courses (0.17 MB)
+[ ] 4. enrollments (0.15 MB)
+[ ] 5. loginhistories (0.87 MB)
+[ ] 6. payments (0 MB)
+[ ] 7. paypalorders (0 MB)
+[ ] 8. publicaichatconversations (0 MB)
+[ ] 9. questions (0.05 MB)
+[ ] 10. quizattempts (0 MB)
+[ ] 11. quizzes (0 MB)
+[ ] 12. tags (0 MB)
+[ ] 13. users (0.23 MB)
+[ ] 14. vouchers (0 MB)
+[ ] 15. voucherusages (0 MB)
+[ ] 16. whatsappconversations (0.75 MB)
+
+RECOMMENDED ORDER:
+1. users (base data - import first)
+2. categories, tags (reference data)
+3. courses, quizzes, questions (content)
+4. enrollments, payments, paypalorders (transactions)
+5. vouchers, voucherusages (voucher system)
+6. blogs (content)
+7. loginhistories (activity logs)
+8. whatsappconversations, publicaichatconversations (communications)
+
+VERIFICATION:
+After each import, verify:
+- Collection appears in "lms" database
+- Document count > 0
+- Sample document looks correct
+
+
+
+
+
+
+
+
+
+
+
+
+
+
