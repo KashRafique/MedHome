@@ -19,18 +19,13 @@ class MainActivity : ReactActivity() {
    * 🔒 SCREENSHOT PREVENTION
    * Blocks ALL screenshots in the entire app
    * Must be called in onCreate() before super.onCreate()
-   * 
-   * TODO: Uncomment below to enable screenshot prevention
    */
   override fun onCreate(savedInstanceState: Bundle?) {
     // Prevent screenshots and screen recording
-    // TODO: Uncomment the lines below to enable screenshot prevention
-    /*
     window.setFlags(
       WindowManager.LayoutParams.FLAG_SECURE,
       WindowManager.LayoutParams.FLAG_SECURE
     )
-    */
     
     super.onCreate(savedInstanceState)
   }
