@@ -4,7 +4,7 @@ module.exports = {
     android: {
       sourceDir: './android',
       appName: 'app',
-      packageName: 'com.frontend',
+      packageName: 'com.medhome',
     },
   },
   assets: ['./src/assets'],

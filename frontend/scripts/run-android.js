@@ -46,8 +46,8 @@ try {
 
 // Always try to launch manually with correct package name
 console.log('🚀 Launching app with correct package name...');
-const packageName = isDev ? 'com.frontend.dev' : 'com.frontend';
-const activityName = 'com.frontend.MainActivity';
+const packageName = isDev ? 'com.medhome.dev' : 'com.medhome';
+const activityName = 'com.medhome.MainActivity';
 
 try {
   execSync(`adb shell am start -n ${packageName}/${activityName} -a android.intent.action.MAIN -c android.intent.category.LAUNCHER`, { 

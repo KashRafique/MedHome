@@ -81,13 +81,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.frontend"
+    namespace "com.medhome"
     defaultConfig {
-        applicationId "com.frontend"
+        applicationId "com.medhome"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 5
+        versionName "5.1.1"
     }
     
     // Build flavors for different environments

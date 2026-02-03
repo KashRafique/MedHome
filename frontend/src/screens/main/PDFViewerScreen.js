@@ -328,8 +328,8 @@ const PDFViewerScreen = ({route, navigation}) => {
     <View style={styles.container}>
       {/* Header - Hide when viewing PDF */}
       {stage !== 'viewing' && (
-        <View style={styles.header}>
-          <TouchableOpacity
+      <View style={styles.header}>
+        <TouchableOpacity
             onPress={() => {
               if (stage === 'viewing') {
                 Orientation.unlockAllOrientations();
@@ -337,18 +337,18 @@ const PDFViewerScreen = ({route, navigation}) => {
               }
               navigation.goBack();
             }}
-            style={styles.backButton}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
+          style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
               {lesson?.title || 'PDF Document'}
-            </Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
+          </Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
               {courseTitle || ''}
-            </Text>
-          </View>
+          </Text>
         </View>
+      </View>
       )}
 
       {/* Content Area */}

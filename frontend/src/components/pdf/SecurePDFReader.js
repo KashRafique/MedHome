@@ -158,8 +158,8 @@ const SecurePDFReader = ({
           <View style={styles.pageCounter}>
             <Text style={styles.pageCounterText}>
               Page {currentPage} of {totalPages}
-            </Text>
-          </View>
+        </Text>
+      </View>
         </Animated.View>
       )}
 

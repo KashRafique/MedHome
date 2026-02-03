@@ -12,8 +12,8 @@ const mode = process.argv[2] || 'devDebug';
 const isDev = mode.includes('dev');
 
 // Determine package name based on flavor
-const packageName = isDev ? 'com.frontend.dev' : 'com.frontend';
-const activityName = 'com.frontend.MainActivity';
+const packageName = isDev ? 'com.medhome.dev' : 'com.medhome';
+const activityName = 'com.medhome.MainActivity';
 
 console.log(`🚀 Launching app with package: ${packageName}`);
 

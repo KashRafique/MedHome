@@ -413,6 +413,65 @@ const startAttempt = async (req: Request, res: Response, next: NextFunction): Pr
   }
 };
 
+const getAttempt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) {
+    res.status(401).json({ message: 'Authentication required' });
+    return;
+  }
+  try {
+    const attempt = await QuizAttempt.findById(req.params.attemptId)
+      .populate({
+        path: 'quiz',
+        populate: {
+          path: 'questions',
+          model: 'Question'
+        }
+      })
+      .populate('course')
+      .populate('student');
+    
+    if (!attempt) {
+      res.status(404).json({ 
+        success: false,
+        message: 'Attempt not found' 
+      });
+      return;
+    }
+
+    // Verify the attempt belongs to the user (unless admin/instructor)
+    // Handle both ObjectId and populated student object
+    const studentObj = attempt.student as any;
+    const studentId = studentObj?._id 
+      ? studentObj._id.toString() 
+      : studentObj.toString();
+    const userId = authReq.user._id.toString();
+    
+    if (authReq.user.role !== UserRole.ADMIN && 
+        authReq.user.role !== UserRole.INSTRUCTOR &&
+        studentId !== userId) {
+      res.status(403).json({ 
+        success: false,
+        message: 'Unauthorized: This attempt does not belong to you' 
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: attempt
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error getting attempt:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error getting attempt', 
+      error: err.message 
+    });
+  }
+};
+
 const submitAttempt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authReq = req as AuthRequest;
   if (!authReq.user) {
@@ -565,7 +624,7 @@ const checkQuizEligibility = async (req: Request, res: Response, next: NextFunct
   }
 
   try {
-    const { id: quizId } = req.params;
+    const { quizId } = req.params;
     
     // Get the quiz
     const quiz = await Quiz.findById(quizId).populate('course');
@@ -667,6 +726,7 @@ export default {
   updateQuestion,
   deleteQuestion,
   startAttempt,
+  getAttempt,
   submitAttempt,
   getQuizStatistics,
   checkQuizEligibility

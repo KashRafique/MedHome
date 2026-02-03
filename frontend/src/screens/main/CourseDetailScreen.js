@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { getCourseContent } from '../../services/courseService';
+import { getQuizzesByCourse, checkQuizEligibility } from '../../services/quizService';
 import { getImageUrl } from '../../utils/imageUtils';
 import PaymentModal from '../../components/course/PaymentModal';
 
@@ -21,6 +22,8 @@ const CourseDetailScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [expandedModules, setExpandedModules] = useState({});
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [quizzes, setQuizzes] = useState([]);
+  const [quizzesLoading, setQuizzesLoading] = useState(false);
   
   // Get enrollment status from course state (will be updated after fetch)
   // Use initial enrollment status as fallback
@@ -33,6 +36,13 @@ const CourseDetailScreen = ({ route, navigation }) => {
     // Fetch full course details with modules and lessons from backend
     fetchCourseContent();
   }, []);
+
+  useEffect(() => {
+    // Fetch quizzes when course is loaded
+    if (course._id || course.id) {
+      fetchQuizzes();
+    }
+  }, [course._id, course.id]);
 
   const fetchCourseContent = async () => {
     try {
@@ -138,6 +148,58 @@ const CourseDetailScreen = ({ route, navigation }) => {
     // Refresh course data to get updated enrollment status
     fetchCourseContent();
     setPaymentModalVisible(false);
+  };
+
+  const fetchQuizzes = async () => {
+    try {
+      setQuizzesLoading(true);
+      const courseId = course._id || course.id;
+      if (courseId) {
+        const response = await getQuizzesByCourse(courseId);
+        const quizzesData = response.data?.quizzes || response.quizzes || [];
+        setQuizzes(quizzesData);
+      }
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+      // Don't show error alert, just log it
+    } finally {
+      setQuizzesLoading(false);
+    }
+  };
+
+  const handleQuizPress = async (quiz) => {
+    // Check if user can take the quiz
+    try {
+      const eligibility = await checkQuizEligibility(quiz._id);
+      const eligibilityData = eligibility.data || eligibility;
+      
+      if (!eligibilityData.canTake) {
+        Alert.alert(
+          'Cannot Take Quiz',
+          eligibilityData.reason || 'You are not eligible to take this quiz.',
+          [
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+        return;
+      }
+
+      // Navigate to quiz screen
+      navigation.navigate('Quiz', {
+        quizId: quiz._id,
+        courseId: course._id || course.id,
+        courseTitle: course.title,
+      });
+    } catch (error) {
+      console.error('Error checking quiz eligibility:', error);
+      Alert.alert(
+        'Error',
+        'Failed to check quiz eligibility. Please try again.'
+      );
+    }
   };
 
   return (
@@ -254,6 +316,7 @@ const CourseDetailScreen = ({ route, navigation }) => {
                               // Fallback to isApproved check if isAccessible is not provided
                               const isAccessible = lesson.isAccessible !== undefined ? lesson.isAccessible : isApproved;
                               const isLocked = !isAccessible;
+                              
                               return (
                                 <TouchableOpacity
                                   key={lessonId}
@@ -292,6 +355,60 @@ const CourseDetailScreen = ({ route, navigation }) => {
                                 </TouchableOpacity>
                               );
                             })}
+                          
+                          {/* Display quizzes for this module (quizzes whose lessons belong to this module) */}
+                          {(() => {
+                            // Get all lesson IDs in this module
+                            const moduleLessonIds = module.lessons.map(l => (l._id || l.id).toString());
+                            
+                            // Find quizzes that belong to lessons in this module
+                            const moduleQuizzes = quizzes.filter(quiz => {
+                              const quizLessonId = quiz.lesson?._id || quiz.lesson || quiz.lessonId;
+                              return quizLessonId && moduleLessonIds.includes(quizLessonId.toString());
+                            });
+                            
+                            if (moduleQuizzes.length > 0) {
+                              return (
+                                <View style={styles.moduleQuizzesContainer}>
+                                  <Text style={styles.moduleQuizzesTitle}>📝 Quizzes</Text>
+                                  {moduleQuizzes.map(quiz => {
+                                    const quizId = quiz._id || quiz.id;
+                                    return (
+                                      <TouchableOpacity
+                                        key={quizId}
+                                        style={styles.moduleQuizItem}
+                                        onPress={() => handleQuizPress(quiz)}
+                                        activeOpacity={0.7}>
+                                        <View style={styles.moduleQuizIconContainer}>
+                                          <Text style={styles.moduleQuizIcon}>📝</Text>
+                                        </View>
+                                        <View style={styles.moduleQuizInfo}>
+                                          <Text style={styles.moduleQuizTitle}>{quiz.title}</Text>
+                                          <View style={styles.moduleQuizMeta}>
+                                            <Text style={styles.moduleQuizMetaText}>
+                                              {quiz.questions?.length || 0} questions
+                                            </Text>
+                                            {quiz.timeLimit && (
+                                              <Text style={styles.moduleQuizMetaText}>
+                                                • {quiz.timeLimit} min
+                                              </Text>
+                                            )}
+                                            {quiz.passingScore && (
+                                              <Text style={styles.moduleQuizMetaText}>
+                                                • Pass: {quiz.passingScore}%
+                                              </Text>
+                                            )}
+                                          </View>
+                                        </View>
+                                        <Text style={styles.moduleQuizArrow}>→</Text>
+                                      </TouchableOpacity>
+                                    );
+                                  })}
+                                </View>
+                              );
+                            }
+                            return null;
+                          })()}
                         </View>
                       )}
                     </View>
@@ -305,6 +422,65 @@ const CourseDetailScreen = ({ route, navigation }) => {
               </View>
             )}
           </View>
+
+          {/* Course-level Quizzes Section (quizzes without lessons) */}
+          {(() => {
+            // Find quizzes that don't have a lesson assigned (course-level quizzes)
+            const courseLevelQuizzes = quizzes.filter(quiz => {
+              const quizLessonId = quiz.lesson?._id || quiz.lesson || quiz.lessonId;
+              return !quizLessonId; // Quiz has no lesson = course-level
+            });
+            
+            if (courseLevelQuizzes.length > 0) {
+              return (
+                <View style={styles.quizzesSection}>
+                  <Text style={styles.sectionTitle}>📝 Course Quizzes</Text>
+                  {courseLevelQuizzes.map(quiz => {
+                    const quizId = quiz._id || quiz.id;
+                    return (
+                      <TouchableOpacity
+                        key={quizId}
+                        style={styles.quizCard}
+                        onPress={() => handleQuizPress(quiz)}
+                        activeOpacity={0.7}>
+                        <View style={styles.quizCardContent}>
+                          <View style={styles.quizIconContainer}>
+                            <Text style={styles.quizIcon}>📝</Text>
+                          </View>
+                          <View style={styles.quizInfo}>
+                            <Text style={styles.quizCardTitle}>{quiz.title}</Text>
+                            <View style={styles.quizMeta}>
+                              <Text style={styles.quizMetaText}>
+                                {quiz.questions?.length || 0} questions
+                              </Text>
+                              {quiz.timeLimit && (
+                                <Text style={styles.quizMetaText}>
+                                  • {quiz.timeLimit} min
+                                </Text>
+                              )}
+                              {quiz.passingScore && (
+                                <Text style={styles.quizMetaText}>
+                                  • Pass: {quiz.passingScore}%
+                                </Text>
+                              )}
+                            </View>
+                            {quiz.description && (
+                              <Text style={styles.quizDescription} numberOfLines={2}>
+                                {quiz.description}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={styles.quizArrow}>→</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              );
+            }
+            return null;
+          })()}
+
         </View>
       </ScrollView>
 
@@ -591,6 +767,174 @@ const styles = StyleSheet.create({
   },
   lockedLabel: {
     fontSize: 11,
+    color: COLORS.textLight,
+    marginLeft: 8,
+  },
+  quizzesSection: {
+    marginTop: 20,
+  },
+  quizCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  quizCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  quizIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  quizIcon: {
+    fontSize: 24,
+  },
+  quizInfo: {
+    flex: 1,
+  },
+  quizCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  quizMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  quizMetaText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginRight: 8,
+  },
+  quizDescription: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  quizArrow: {
+    fontSize: 20,
+    color: COLORS.textLight,
+    marginLeft: 8,
+  },
+  lessonQuizzesContainer: {
+    paddingLeft: 48, // Align with lesson content (icon width + margin)
+    paddingRight: 16,
+    paddingBottom: 8,
+  },
+  lessonQuizItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: COLORS.primary + '08',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  lessonQuizIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  lessonQuizIcon: {
+    fontSize: 18,
+  },
+  lessonQuizInfo: {
+    flex: 1,
+  },
+  lessonQuizTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  lessonQuizMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  lessonQuizMetaText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginRight: 6,
+  },
+  lessonQuizArrow: {
+    fontSize: 16,
+    color: COLORS.textLight,
+    marginLeft: 8,
+  },
+  moduleQuizzesContainer: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  moduleQuizzesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  moduleQuizItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: COLORS.primary + '08',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+    marginHorizontal: 0,
+  },
+  moduleQuizIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  moduleQuizIcon: {
+    fontSize: 18,
+  },
+  moduleQuizInfo: {
+    flex: 1,
+  },
+  moduleQuizTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  moduleQuizMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  moduleQuizMetaText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginRight: 8,
+  },
+  moduleQuizArrow: {
+    fontSize: 18,
     color: COLORS.textLight,
     marginLeft: 8,
   },

@@ -19,6 +19,7 @@ const updateQuestionHandler = (req: Request, res: Response, next: NextFunction) 
 const deleteQuestionHandler = (req: Request, res: Response, next: NextFunction) => quizController.deleteQuestion(req, res, next);
 
 const startAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.startAttempt(req, res, next);
+const getAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.getAttempt(req, res, next);
 const submitAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.submitAttempt(req, res, next);
 
 const getQuizStatisticsHandler = (req: Request, res: Response, next: NextFunction) => quizController.getQuizStatistics(req, res, next);
@@ -31,22 +32,23 @@ router.get('/courses/:courseId/quizzes', authenticateToken, getQuizzesByCourseHa
 // Get all quizzes (with pagination and filters) - must come before /:id routes
 router.get('/', authenticateToken, authorizeRoles(UserRole.ADMIN, UserRole.INSTRUCTOR), getAllQuizzesHandler);
 
-// Individual Quiz Routes
-router.get('/:id', authenticateToken, getQuizHandler);
-router.put('/:id', authenticateToken, authorizeRoles(UserRole.ADMIN, UserRole.INSTRUCTOR), updateQuizHandler);
-router.delete('/:id', authenticateToken, authorizeRoles(UserRole.ADMIN), deleteQuizHandler);
+// Analytics Routes - MUST come before /:id route (more specific routes first)
+router.get('/:quizId/eligibility', authenticateToken, checkQuizEligibilityHandler);
+router.get('/:quizId/statistics', authenticateToken, getQuizStatisticsHandler);
 
-// Question Routes
+// Attempt Routes - MUST come before /:id route (more specific routes first)
+router.post('/:quizId/attempts', authenticateToken, startAttemptHandler);
+router.get('/attempts/:attemptId', authenticateToken, getAttemptHandler);
+router.put('/attempts/:attemptId', authenticateToken, submitAttemptHandler);
+
+// Question Routes - MUST come before /:id route (more specific routes first)
 router.post('/:quizId/questions', authenticateToken, uploadQuestionImage, addQuestionHandler);
 router.put('/:quizId/questions/:questionId', authenticateToken, updateQuestionHandler);
 router.delete('/:quizId/questions/:questionId', authenticateToken, deleteQuestionHandler);
 
-// Attempt Routes
-router.post('/:quizId/attempts', authenticateToken, startAttemptHandler);
-router.put('/attempts/:attemptId', authenticateToken, submitAttemptHandler);
-
-// Analytics Routes
-router.get('/:quizId/eligibility', authenticateToken, checkQuizEligibilityHandler);
-router.get('/:quizId/statistics', authenticateToken, getQuizStatisticsHandler);
+// Individual Quiz Routes - Generic routes must come LAST
+router.get('/:id', authenticateToken, getQuizHandler);
+router.put('/:id', authenticateToken, authorizeRoles(UserRole.ADMIN, UserRole.INSTRUCTOR), updateQuizHandler);
+router.delete('/:id', authenticateToken, authorizeRoles(UserRole.ADMIN), deleteQuizHandler);
 
 export default router;

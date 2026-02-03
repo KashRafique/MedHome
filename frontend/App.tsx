@@ -16,6 +16,8 @@ import HomeScreen from './src/screens/main/HomeScreen';
 import CourseDetailScreen from './src/screens/main/CourseDetailScreen';
 import VideoPlayerScreen from './src/screens/main/VideoPlayerScreen';
 import PDFViewerScreen from './src/screens/main/PDFViewerScreen';
+import QuizScreen from './src/screens/main/QuizScreen';
+import QuizResultsScreen from './src/screens/main/QuizResultsScreen';
 import MyCoursesScreen from './src/screens/main/MyCoursesScreen';
 import PaymentsScreen from './src/screens/drawer/PaymentsScreen';
 import CustomDrawerContent from './src/navigation/CustomDrawerContent';
@@ -132,6 +134,8 @@ function App() {
             gestureEnabled: false, // Prevent swipe back during PDF loading
           }}
         />
+        <Stack.Screen name="Quiz" component={QuizScreen} />
+        <Stack.Screen name="QuizResults" component={QuizResultsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
