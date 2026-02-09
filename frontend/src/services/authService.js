@@ -98,3 +98,35 @@ export const verifyEmailToken = async token => {
   }
 };
 
+export const requestPasswordReset = async email => {
+  try {
+    const response = await api.post(API_ENDPOINTS.REQUEST_PASSWORD_RESET, {
+      email: email.trim().toLowerCase(),
+    });
+    return {success: true, data: response.data};
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        'Failed to request password reset. Please try again.',
+    };
+  }
+};export const resetPassword = async (token, newPassword) => {
+  try {
+    const response = await api.post(
+      `${API_ENDPOINTS.RESET_PASSWORD}/${token}`,
+      {
+        password: newPassword,
+      },
+    );
+    return {success: true, data: response.data};
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        'Failed to reset password. The link may be invalid or expired.',
+    };
+  }
+};

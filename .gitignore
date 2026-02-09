@@ -44,3 +44,71 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# Keystore files (sensitive - contains passwords)
+*.keystore
+!debug.keystore
+keystore.properties
+
+# Build outputs (too large, can be regenerated)
+android/app/build/
+android/build/
+ios/build/
+*.apk
+*.aab
+
+# Error logs
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# React Native specific
+frontend/.bundle/
+frontend/android/app/build/
+
+# CONFIDENTIAL CONTENT - DO NOT UPLOAD
+# Videos (lectures, tutorials, testimonials)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.m4v
+
+# Testimonial images and videos (confidential student data)
+**/testimonial/
+**/assets/testimonial/
+
+# Large images that might be confidential
+*.jpeg
+*.jpg
+*.png
+*.gif
+*.svg
+*.ico
+*.webp
+
+# Build artifacts
+*.tsbuildinfo
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Temporary documentation
+**/IMPORT_*.md
+**/SETUP_*.md
+**/*_GUIDE.md
+**/*_OVERVIEW.md
+**/*_INSTRUCTIONS.md
+**/START_SERVERS.md
+
+# PowerShell scripts that might contain sensitive commands
+*.ps1
+
+# Webfrontend - exclude entire directory
+/webfrontend
+webfrontend/

@@ -28,25 +28,33 @@
         </intent-filter>
         
         <!-- Deep Link intent filter (Custom Scheme) -->
+        <!-- Handles: medhomie://verify-email, medhomie://reset-password/:token, medhomie://login -->
         <intent-filter>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
-            
-            <!-- Your custom scheme -->
             <data android:scheme="medhomie" />
         </intent-filter>
         
-        <!-- Universal Links (optional - for https links) -->
+        <!-- Universal Links (App Links) for password reset -->
         <intent-filter android:autoVerify="true">
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
-            
-            <!-- Your website domain -->
             <data 
                 android:scheme="https"
-                android:host="medhome.com"
+                android:host="uat.medhome.courses"
+                android:pathPrefix="/auth/reset-password" />
+        </intent-filter>
+        
+        <!-- Universal Links (App Links) for email verification -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data 
+                android:scheme="https"
+                android:host="uat.medhome.courses"
                 android:pathPrefix="/verify-email" />
         </intent-filter>
         
