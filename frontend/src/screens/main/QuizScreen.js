@@ -15,6 +15,7 @@ import {
   checkQuizEligibility,
   startQuizAttempt,
   submitQuizAttempt,
+  getUserQuizAttempts,
 } from '../../services/quizService';
 import QuestionNavigator from '../../components/quiz/QuestionNavigator';
 import QuizTimer from '../../components/quiz/QuizTimer';
@@ -33,6 +34,7 @@ const QuizScreen = ({ route, navigation }) => {
   const [attemptId, setAttemptId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
+  const [previousAttempts, setPreviousAttempts] = useState([]);
 
   // Fetch quiz data and eligibility
   useEffect(() => {
@@ -50,7 +52,27 @@ const QuizScreen = ({ route, navigation }) => {
       ]);
 
       setQuizData(quizResponse.data || quizResponse);
-      setEligibility(eligibilityResponse.data || eligibilityResponse);
+      // Backend returns: { success: true, data: { canTake, attemptsRemaining, maxAttempts } }
+      // checkQuizEligibility returns response.data, so we get { success: true, data: { ... } }
+      // We need to extract the inner data object
+      const eligibilityData = eligibilityResponse.data || eligibilityResponse;
+      console.log('📊 Eligibility data structure:', {
+        fullResponse: eligibilityResponse,
+        extractedData: eligibilityData,
+        attemptsRemaining: eligibilityData?.attemptsRemaining ?? eligibilityData?.data?.attemptsRemaining,
+        maxAttempts: eligibilityData?.maxAttempts ?? eligibilityData?.data?.maxAttempts,
+      });
+      setEligibility(eligibilityData);
+      
+      // Fetch previous attempts
+      try {
+        const attemptsResponse = await getUserQuizAttempts(quizId);
+        const attempts = attemptsResponse.data || (Array.isArray(attemptsResponse) ? attemptsResponse : []);
+        setPreviousAttempts(Array.isArray(attempts) ? attempts : []);
+      } catch (error) {
+        console.error('Error fetching previous attempts:', error);
+        setPreviousAttempts([]);
+      }
     } catch (error) {
       console.error('Error fetching quiz data:', error);
       Alert.alert(
@@ -84,6 +106,23 @@ const QuizScreen = ({ route, navigation }) => {
 
     return () => clearInterval(timer);
   }, [timeRemaining, quizStarted]);
+
+  // Handle view previous attempts
+  const handleViewPreviousAttempts = () => {
+    if (previousAttempts.length === 0) {
+      Alert.alert('No Attempts', 'You have not completed any attempts yet.');
+      return;
+    }
+    
+    // Navigate to the most recent attempt
+    const latestAttempt = previousAttempts[0]; // Assuming sorted by most recent first
+    navigation.navigate('QuizResults', {
+      attemptId: latestAttempt._id,
+      quizId,
+      courseId,
+      courseTitle,
+    });
+  };
 
   // Start quiz attempt
   const handleStartQuiz = async () => {
@@ -223,11 +262,29 @@ const QuizScreen = ({ route, navigation }) => {
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorTitle}>Cannot Take Quiz</Text>
           <Text style={styles.errorMessage}>{eligibility.reason || 'You are not eligible to take this quiz.'}</Text>
-          {eligibility.attemptsRemaining !== undefined && (
+          {(eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining) !== undefined && (
             <Text style={styles.errorSubtext}>
-              Attempts remaining: {eligibility.attemptsRemaining} / {eligibility.maxAttempts}
+              {(() => {
+                const maxAttempts = eligibility.maxAttempts ?? eligibility.data?.maxAttempts ?? 0;
+                const attemptsRemaining = eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining ?? 0;
+                const attemptsUsed = maxAttempts - attemptsRemaining;
+                return `Attempts: ${attemptsUsed} / ${maxAttempts}`;
+              })()}
             </Text>
           )}
+          
+          {/* View Previous Attempts Button */}
+          {previousAttempts.length > 0 && (
+            <TouchableOpacity
+              style={styles.viewAttemptsButton}
+              onPress={handleViewPreviousAttempts}
+              activeOpacity={0.8}>
+              <Text style={styles.viewAttemptsButtonText}>
+                📋 Review Previous Attempts ({previousAttempts.length})
+              </Text>
+            </TouchableOpacity>
+          )}
+          
           <TouchableOpacity
             style={styles.errorButton}
             onPress={() => navigation.goBack()}>
@@ -301,9 +358,14 @@ const QuizScreen = ({ route, navigation }) => {
               </View>
               {eligibility && (
                 <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Attempts Remaining:</Text>
+                  <Text style={styles.detailLabel}>Attempts:</Text>
                   <Text style={styles.detailValue}>
-                    {eligibility.attemptsRemaining} / {eligibility.maxAttempts}
+                    {(() => {
+                      const maxAttempts = eligibility.maxAttempts ?? eligibility.data?.maxAttempts ?? 0;
+                      const attemptsRemaining = eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining ?? 0;
+                      const attemptsUsed = maxAttempts - attemptsRemaining;
+                      return `${attemptsUsed} / ${maxAttempts}`;
+                    })()}
                   </Text>
                 </View>
               )}
@@ -312,9 +374,24 @@ const QuizScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={styles.startButton}
               onPress={handleStartQuiz}
-              activeOpacity={0.8}>
-              <Text style={styles.startButtonText}>Start Quiz</Text>
+              activeOpacity={0.8}
+              disabled={eligibility && !eligibility.canTake}>
+              <Text style={styles.startButtonText}>
+                {eligibility && !eligibility.canTake ? 'Cannot Start Quiz' : 'Start Quiz'}
+              </Text>
             </TouchableOpacity>
+
+            {/* View Previous Attempts Button - Show if there are previous attempts */}
+            {previousAttempts.length > 0 && (
+              <TouchableOpacity
+                style={styles.viewAttemptsButton}
+                onPress={handleViewPreviousAttempts}
+                activeOpacity={0.8}>
+                <Text style={styles.viewAttemptsButtonText}>
+                  📋 Review Previous Attempts ({previousAttempts.length})
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </View>
@@ -650,6 +727,20 @@ const styles = StyleSheet.create({
   },
   errorButtonText: {
     color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  viewAttemptsButton: {
+    backgroundColor: COLORS.primary + '20',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  viewAttemptsButtonText: {
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: '600',
   },

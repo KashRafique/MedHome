@@ -107,3 +107,17 @@ export const getQuizAttempt = async (attemptId) => {
     throw error;
   }
 };
+
+/**
+ * Get user's attempts for a quiz
+ * Backend endpoint: GET /api/quizzes/:quizId/attempts
+ */
+export const getUserQuizAttempts = async (quizId) => {
+  try {
+    const response = await api.get(`/api/quizzes/${quizId}/attempts`);
+    return response.data;
+  } catch (error) {
+    console.error('Get user quiz attempts error:', error);
+    throw error;
+  }
+};

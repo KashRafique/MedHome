@@ -5,7 +5,9 @@ buildscript {
         compileSdkVersion = 36
         targetSdkVersion = 36
         ndkVersion = "25.1.8937393"
-        kotlinVersion = "1.8.0"
+        // Updated to a Kotlin version that is compatible with Android 15 to avoid
+        // removeFirst()/removeLast() crashes on newer Android releases
+        kotlinVersion = "1.9.22"
     }
     repositories {
         google()

@@ -21,6 +21,7 @@ const deleteQuestionHandler = (req: Request, res: Response, next: NextFunction) 
 const startAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.startAttempt(req, res, next);
 const getAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.getAttempt(req, res, next);
 const submitAttemptHandler = (req: Request, res: Response, next: NextFunction) => quizController.submitAttempt(req, res, next);
+const getUserAttemptsHandler = (req: Request, res: Response, next: NextFunction) => quizController.getUserAttempts(req, res, next);
 
 const getQuizStatisticsHandler = (req: Request, res: Response, next: NextFunction) => quizController.getQuizStatistics(req, res, next);
 const checkQuizEligibilityHandler = (req: Request, res: Response, next: NextFunction) => quizController.checkQuizEligibility(req, res, next);
@@ -38,6 +39,7 @@ router.get('/:quizId/statistics', authenticateToken, getQuizStatisticsHandler);
 
 // Attempt Routes - MUST come before /:id route (more specific routes first)
 router.post('/:quizId/attempts', authenticateToken, startAttemptHandler);
+router.get('/:quizId/attempts', authenticateToken, getUserAttemptsHandler);
 router.get('/attempts/:attemptId', authenticateToken, getAttemptHandler);
 router.put('/attempts/:attemptId', authenticateToken, submitAttemptHandler);
 

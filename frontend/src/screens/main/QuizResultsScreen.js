@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
-import { getQuizAttempt, getQuiz, startQuizAttempt, checkQuizEligibility } from '../../services/quizService';
+import { getQuizAttempt, getQuiz, startQuizAttempt, checkQuizEligibility, getUserQuizAttempts } from '../../services/quizService';
 
 const QuizResultsScreen = ({ route, navigation }) => {
   const { attemptId, quizId, courseId, courseTitle, result } = route.params || {};
@@ -17,14 +19,65 @@ const QuizResultsScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [attemptData, setAttemptData] = useState(result);
   const [quizData, setQuizData] = useState(null);
+  const [allAttempts, setAllAttempts] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showNavigator, setShowNavigator] = useState(false);
   const [showYourAnswer, setShowYourAnswer] = useState(true);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(true);
+  const [showAttemptSelector, setShowAttemptSelector] = useState(false);
+  const [showAttemptsFinishedModal, setShowAttemptsFinishedModal] = useState(false);
+  const [eligibility, setEligibility] = useState(null);
+  const [showMistakesOnly, setShowMistakesOnly] = useState(false);
+  const [mistakesSummary, setMistakesSummary] = useState(null);
 
   useEffect(() => {
     fetchResults();
+    fetchAllAttempts();
+    checkEligibility();
   }, [attemptId, quizId]);
+
+  // Helper to normalize question IDs
+  const normalizeQuestionId = (id) => {
+    if (!id) return null;
+    if (typeof id === 'string') return id;
+    if (typeof id === 'object' && id._id) return id._id.toString();
+    return id.toString();
+  };
+
+  // Calculate mistakes summary - memoized with useCallback
+  const calculateMistakesSummary = useCallback(() => {
+    if (!attemptData || !quizData) return null;
+    
+    const incorrectAnswers = attemptData.answers?.filter(a => !a.isCorrect) || [];
+    const correctAnswers = attemptData.answers?.filter(a => a.isCorrect) || [];
+    
+    return {
+      total: quizData.questions?.length || 0,
+      correct: correctAnswers.length,
+      incorrect: incorrectAnswers.length,
+      unanswered: (quizData.questions?.length || 0) - (attemptData.answers?.length || 0),
+      incorrectQuestions: incorrectAnswers.map(a => {
+        const question = quizData.questions?.find(q => 
+          normalizeQuestionId(q._id) === normalizeQuestionId(a.question)
+        );
+        return {
+          questionId: a.question,
+          questionText: question?.question || 'Unknown question',
+          userAnswer: a.answer,
+          correctAnswer: question?.correctAnswer,
+          questionIndex: quizData.questions?.findIndex(q => 
+            normalizeQuestionId(q._id) === normalizeQuestionId(a.question)
+          )
+        };
+      })
+    };
+  }, [attemptData, quizData]);
+
+  // Calculate mistakes summary when attemptData changes - MUST be before early returns
+  useEffect(() => {
+    const summary = calculateMistakesSummary();
+    setMistakesSummary(summary);
+  }, [calculateMistakesSummary]);
 
   const fetchResults = async () => {
     try {
@@ -46,6 +99,60 @@ const QuizResultsScreen = ({ route, navigation }) => {
     }
   };
 
+  const fetchAllAttempts = async () => {
+    if (!quizId) return;
+    try {
+      const response = await getUserQuizAttempts(quizId);
+      // Backend returns { success: true, data: attempts[] }
+      const attempts = response.data || (Array.isArray(response) ? response : []);
+      setAllAttempts(Array.isArray(attempts) ? attempts : []);
+    } catch (error) {
+      console.error('Error fetching all attempts:', error);
+      setAllAttempts([]); // Set empty array on error to prevent UI issues
+    }
+  };
+
+  const checkEligibility = async () => {
+    if (!quizId) return;
+    try {
+      const response = await checkQuizEligibility(quizId);
+      // Backend returns: { success: true, data: { canTake, attemptsRemaining, maxAttempts } }
+      // checkQuizEligibility returns response.data, so we get { success: true, data: { ... } }
+      // We need to extract the inner data object
+      const eligibilityData = response.data || response;
+      console.log('📊 QuizResults Eligibility data structure:', {
+        fullResponse: response,
+        extractedData: eligibilityData,
+        attemptsRemaining: eligibilityData?.attemptsRemaining ?? eligibilityData?.data?.attemptsRemaining,
+        maxAttempts: eligibilityData?.maxAttempts ?? eligibilityData?.data?.maxAttempts,
+      });
+      setEligibility(eligibilityData);
+      
+      // Show modal if attempts are finished
+      const attemptsRemaining = eligibilityData.attemptsRemaining ?? eligibilityData.data?.attemptsRemaining ?? 0;
+      if (!eligibilityData.canTake && attemptsRemaining === 0) {
+        setShowAttemptsFinishedModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking eligibility:', error);
+    }
+  };
+
+  const handleSelectAttempt = async (selectedAttempt) => {
+    try {
+      setLoading(true);
+      const response = await getQuizAttempt(selectedAttempt._id);
+      setAttemptData(response.data || response);
+      setShowAttemptSelector(false);
+      setCurrentQuestionIndex(0); // Reset to first question
+    } catch (error) {
+      console.error('Error loading attempt:', error);
+      Alert.alert('Error', 'Failed to load attempt details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRetakeQuiz = async () => {
     if (!quizId) {
       Alert.alert('Error', 'Quiz ID not found');
@@ -55,20 +162,21 @@ const QuizResultsScreen = ({ route, navigation }) => {
     try {
       // Check eligibility first
       const eligibilityResponse = await checkQuizEligibility(quizId);
-      const eligibility = eligibilityResponse.data || eligibilityResponse;
+      const eligibilityData = eligibilityResponse.data || eligibilityResponse;
       
-      console.log('Retake quiz eligibility check:', eligibility);
+      console.log('Retake quiz eligibility check:', eligibilityData);
       
-      if (!eligibility.canTake) {
+      if (!eligibilityData.canTake) {
         Alert.alert(
           'Cannot Retake Quiz',
-          eligibility.reason || 'You have reached the maximum number of attempts for this quiz.',
+          eligibilityData.reason || 'You have reached the maximum number of attempts for this quiz.',
           [{ text: 'OK' }]
         );
         return;
       }
 
-      if (eligibility.attemptsRemaining <= 0) {
+      const attemptsRemaining = eligibilityData.attemptsRemaining ?? eligibilityData.data?.attemptsRemaining ?? 0;
+      if (attemptsRemaining <= 0) {
         Alert.alert(
           'No Attempts Remaining',
           'You have used all available attempts for this quiz.',
@@ -79,7 +187,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
 
       Alert.alert(
         'Retake Quiz',
-        `You have ${eligibility.attemptsRemaining} attempt(s) remaining. Are you sure you want to retake this quiz?`,
+        `You have ${attemptsRemaining} attempt(s) remaining. Are you sure you want to retake this quiz?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -122,16 +230,16 @@ const QuizResultsScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading results...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!attemptData || !quizData) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
@@ -141,7 +249,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No results available</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -153,14 +261,6 @@ const QuizResultsScreen = ({ route, navigation }) => {
   const incorrectAnswers = attemptData.answers?.filter((a) => !a.isCorrect).length || 0;
   const unansweredQuestions = totalQuestions - (attemptData.answers?.length || 0);
   const timeSpent = attemptData.timeSpent || 0;
-
-  // Helper to normalize question IDs
-  const normalizeQuestionId = (id) => {
-    if (!id) return null;
-    if (typeof id === 'string') return id;
-    if (typeof id === 'object' && id._id) return id._id.toString();
-    return id.toString();
-  };
 
   // Get current question
   const currentQuestion = quizData.questions?.[currentQuestionIndex];
@@ -185,6 +285,30 @@ const QuizResultsScreen = ({ route, navigation }) => {
     return answer.isCorrect ? 'correct' : 'incorrect';
   };
 
+  // Get filtered questions based on showMistakesOnly
+  const getFilteredQuestions = () => {
+    if (!quizData?.questions) return [];
+    if (!showMistakesOnly || !mistakesSummary) return quizData.questions;
+    
+    return quizData.questions.filter((q, idx) => {
+      const answer = attemptData.answers?.find(a => 
+        normalizeQuestionId(a.question) === normalizeQuestionId(q._id)
+      );
+      return !answer || !answer.isCorrect;
+    });
+  };
+
+  // Get current question index in filtered list
+  const getFilteredQuestionIndex = (originalIndex) => {
+    if (!showMistakesOnly || !mistakesSummary) return originalIndex;
+    const filteredQuestions = getFilteredQuestions();
+    const originalQuestion = quizData?.questions?.[originalIndex];
+    if (!originalQuestion) return 0;
+    return filteredQuestions.findIndex(q => 
+      normalizeQuestionId(q._id) === normalizeQuestionId(originalQuestion._id)
+    );
+  };
+
   // Format answer display
   const formatAnswer = (answer) => {
     if (Array.isArray(answer)) {
@@ -206,7 +330,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
 
   if (!currentQuestion) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
@@ -216,7 +340,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No questions available</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -224,8 +348,12 @@ const QuizResultsScreen = ({ route, navigation }) => {
   const userAnswer = currentAnswer?.answer || 'Not answered';
   const correctAnswer = currentQuestion?.correctAnswer;
 
+  // Get current attempt number
+  const currentAttemptNumber = attemptData?.attemptNumber || 1;
+  const maxAttempts = quizData?.maxAttempts || 3;
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.navigate('CourseDetail', { course: { _id: courseId } })}
@@ -233,14 +361,146 @@ const QuizResultsScreen = ({ route, navigation }) => {
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quiz Results</Text>
-        <TouchableOpacity
-          onPress={() => setShowNavigator(!showNavigator)}
-          style={styles.navigatorToggle}>
-          <Text style={styles.navigatorToggleText}>#</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* Attempt Selector Button */}
+          {allAttempts.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowAttemptSelector(true)}
+              style={styles.attemptSelectorButton}>
+              <Text style={styles.attemptSelectorText}>
+                Attempt {currentAttemptNumber}/{maxAttempts}
+                {allAttempts.length > 1 && ` (${allAttempts.length} total)`}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => setShowNavigator(!showNavigator)}
+            style={styles.navigatorToggle}>
+            <Text style={styles.navigatorToggleText}>#</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Attempts Finished Modal */}
+      <Modal
+        visible={showAttemptsFinishedModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAttemptsFinishedModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>All Attempts Completed</Text>
+            <Text style={styles.modalText}>
+              You have used all {maxAttempts} attempts for this quiz. You can review your previous attempts below.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowAttemptsFinishedModal(false)}>
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Attempt Selector Modal */}
+      <Modal
+        visible={showAttemptSelector}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAttemptSelector(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.attemptSelectorModal}>
+            <View style={styles.attemptSelectorHeader}>
+              <Text style={styles.attemptSelectorTitle}>Select Attempt to Review</Text>
+              <TouchableOpacity
+                onPress={() => setShowAttemptSelector(false)}
+                style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.attemptList}>
+              {allAttempts.map((attempt, index) => {
+                const isSelected = attempt._id === attemptData._id;
+                const attemptDate = attempt.completedAt 
+                  ? new Date(attempt.completedAt).toLocaleDateString()
+                  : 'Incomplete';
+                
+                // Calculate stats for this attempt
+                const incorrectCount = attempt.answers?.filter(a => !a.isCorrect).length || 0;
+                const correctCount = attempt.answers?.filter(a => a.isCorrect).length || 0;
+                const totalQuestions = quizData?.questions?.length || 0;
+                const unansweredCount = totalQuestions - (attempt.answers?.length || 0);
+                
+                return (
+                  <TouchableOpacity
+                    key={attempt._id}
+                    style={[
+                      styles.attemptItem,
+                      isSelected && styles.attemptItemSelected
+                    ]}
+                    onPress={() => handleSelectAttempt(attempt)}>
+                    <View style={styles.attemptItemHeader}>
+                      <Text style={styles.attemptItemNumber}>
+                        Attempt {attempt.attemptNumber}
+                      </Text>
+                      {attempt.passed ? (
+                        <Text style={styles.attemptStatusPassed}>PASSED</Text>
+                      ) : (
+                        <Text style={styles.attemptStatusFailed}>FAILED</Text>
+                      )}
+                    </View>
+                    <View style={styles.attemptItemDetails}>
+                      <Text style={styles.attemptItemScore}>
+                        Score: {attempt.percentage?.toFixed(1)}%
+                      </Text>
+                      <Text style={styles.attemptItemDate}>{attemptDate}</Text>
+                    </View>
+                    {/* Add new stats row */}
+                    <View style={styles.attemptItemStats}>
+                      <View style={styles.attemptStatBadge}>
+                        <Text style={styles.attemptStatText}>
+                          ✓ {correctCount} correct
+                        </Text>
+                      </View>
+                      {incorrectCount > 0 && (
+                        <View style={[styles.attemptStatBadge, styles.attemptStatBadgeError]}>
+                          <Text style={[styles.attemptStatText, styles.attemptStatTextError]}>
+                            ✗ {incorrectCount} wrong
+                          </Text>
+                        </View>
+                      )}
+                      {unansweredCount > 0 && (
+                        <View style={styles.attemptStatBadge}>
+                          <Text style={styles.attemptStatText}>
+                            ? {unansweredCount} unanswered
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {isSelected && (
+                      <Text style={styles.attemptItemCurrent}>Current</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={true}>
+        {/* Attempt Info Banner */}
+        <View style={styles.attemptInfoBanner}>
+          <Text style={styles.attemptInfoText}>
+            Reviewing: Attempt {currentAttemptNumber} of {maxAttempts}
+          </Text>
+          {eligibility && (eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining ?? 0) > 0 && (
+            <Text style={styles.attemptsRemainingText}>
+              {(eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining ?? 0)} attempt(s) remaining
+            </Text>
+          )}
+        </View>
+
         {/* Summary Cards */}
         <View style={styles.summaryCardsContainer}>
           {/* Status Card */}
@@ -302,6 +562,63 @@ const QuizResultsScreen = ({ route, navigation }) => {
               : "Keep studying! Focus on the areas where you struggled."}
           </Text>
         </View>
+
+        {/* Mistakes Summary Section */}
+        {mistakesSummary && mistakesSummary.incorrect > 0 && (
+          <View style={styles.mistakesSummaryContainer}>
+            <View style={styles.mistakesSummaryHeader}>
+              <Text style={styles.mistakesSummaryTitle}>📋 Review Your Mistakes</Text>
+              <TouchableOpacity
+                onPress={() => setShowMistakesOnly(!showMistakesOnly)}
+                style={styles.toggleButton}>
+                <Text style={styles.toggleButtonText}>
+                  {showMistakesOnly ? 'Show All' : 'Show Mistakes Only'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.mistakesStats}>
+              <View style={styles.mistakeStatCard}>
+                <Text style={styles.mistakeStatNumber}>{mistakesSummary.incorrect}</Text>
+                <Text style={styles.mistakeStatLabel}>Incorrect</Text>
+              </View>
+              <View style={styles.mistakeStatCard}>
+                <Text style={[styles.mistakeStatNumber, styles.mistakeStatNumberCorrect]}>
+                  {mistakesSummary.correct}
+                </Text>
+                <Text style={styles.mistakeStatLabel}>Correct</Text>
+              </View>
+              <View style={styles.mistakeStatCard}>
+                <Text style={styles.mistakeStatNumber}>{mistakesSummary.unanswered}</Text>
+                <Text style={styles.mistakeStatLabel}>Unanswered</Text>
+              </View>
+            </View>
+            
+            {/* Quick access to incorrect questions */}
+            {mistakesSummary.incorrectQuestions.length > 0 && (
+              <View style={styles.incorrectQuestionsList}>
+                <Text style={styles.incorrectQuestionsTitle}>Incorrect Questions:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.incorrectQuestionsScroll}>
+                  {mistakesSummary.incorrectQuestions.map((item, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.incorrectQuestionBadge}
+                      onPress={() => {
+                        if (item.questionIndex >= 0) {
+                          setCurrentQuestionIndex(item.questionIndex);
+                          setShowMistakesOnly(false);
+                        }
+                      }}>
+                      <Text style={styles.incorrectQuestionBadgeText}>
+                        Q{item.questionIndex + 1}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Question Navigator Grid (Collapsible) */}
         {showNavigator && (
@@ -463,19 +780,27 @@ const QuizResultsScreen = ({ route, navigation }) => {
           <View style={styles.questionNumberListContainer}>
             <Text style={styles.questionListTitle}>
               Question {currentQuestionIndex + 1} of {totalQuestions}
+              {showMistakesOnly && mistakesSummary && ` (Showing ${mistakesSummary.incorrectQuestions.length} mistakes)`}
             </Text>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={true}
               contentContainerStyle={styles.questionNumberList}
               style={styles.questionNumberListScroll}>
-              {quizData.questions.map((question, index) => {
+              {(showMistakesOnly && mistakesSummary 
+                ? getFilteredQuestions() 
+                : quizData.questions
+              ).map((question, filteredIndex) => {
+                // Find original index for this question
+                const originalIndex = quizData.questions.findIndex(q => 
+                  normalizeQuestionId(q._id) === normalizeQuestionId(question._id)
+                );
                 const status = getQuestionStatus(question._id);
-                const isCurrent = index === currentQuestionIndex;
+                const isCurrent = originalIndex === currentQuestionIndex;
                 
                 return (
                   <TouchableOpacity
-                    key={question._id || index}
+                    key={question._id || originalIndex}
                     style={[
                       styles.questionNumberButton,
                       isCurrent && styles.questionNumberButtonCurrent,
@@ -484,7 +809,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
                       status === 'unanswered' && !isCurrent && styles.questionNumberButtonUnanswered,
                     ]}
                     onPress={() => {
-                      setCurrentQuestionIndex(index);
+                      setCurrentQuestionIndex(originalIndex);
                     }}
                     activeOpacity={0.7}>
                     <Text
@@ -494,7 +819,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
                         status === 'correct' && !isCurrent && styles.questionNumberButtonTextCorrect,
                         status === 'incorrect' && !isCurrent && styles.questionNumberButtonTextIncorrect,
                       ]}>
-                      {index + 1}
+                      {originalIndex + 1}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -540,12 +865,31 @@ const QuizResultsScreen = ({ route, navigation }) => {
 
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          style={styles.retakeButton}
-          onPress={handleRetakeQuiz}
-          activeOpacity={0.8}>
-          <Text style={styles.retakeButtonText}>Retake Quiz</Text>
-        </TouchableOpacity>
+        {eligibility && eligibility.canTake && (eligibility.attemptsRemaining ?? eligibility.data?.attemptsRemaining ?? 0) > 0 ? (
+          <TouchableOpacity
+            style={styles.retakeButton}
+            onPress={handleRetakeQuiz}
+            activeOpacity={0.8}>
+            <Text style={styles.retakeButtonText}>Retake Quiz</Text>
+          </TouchableOpacity>
+        ) : allAttempts.length > 0 ? (
+          // Show "Review Previous Attempts" button when no attempts remaining but have previous attempts
+          <TouchableOpacity
+            style={styles.reviewButton}
+            onPress={() => setShowAttemptSelector(true)}
+            activeOpacity={0.8}>
+            <Text style={styles.reviewButtonText}>Review Previous Attempts</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.retakeButton, styles.retakeButtonDisabled]}
+            disabled={true}
+            activeOpacity={0.8}>
+            <Text style={[styles.retakeButtonText, styles.retakeButtonTextDisabled]}>
+              No Attempts Available
+            </Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.backButtonAction}
           onPress={() => navigation.navigate('CourseDetail', { course: { _id: courseId } })}
@@ -553,7 +897,7 @@ const QuizResultsScreen = ({ route, navigation }) => {
           <Text style={styles.backButtonText}>Back to Course</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -593,6 +937,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.white,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  attemptSelectorButton: {
+    backgroundColor: COLORS.white + '30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.white + '50',
+  },
+  attemptSelectorText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
   navigatorToggle: {
     padding: 8,
@@ -1090,6 +1452,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  reviewButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  reviewButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   backButtonAction: {
     borderRadius: 8,
     paddingVertical: 16,
@@ -1111,6 +1486,264 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     color: COLORS.textSecondary,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  attemptSelectorModal: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '70%',
+  },
+  attemptSelectorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  attemptSelectorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: COLORS.textSecondary,
+  },
+  attemptList: {
+    maxHeight: 400,
+  },
+  attemptItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  attemptItemSelected: {
+    backgroundColor: COLORS.primary + '10',
+  },
+  attemptItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  attemptItemNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  attemptStatusPassed: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.success,
+    backgroundColor: COLORS.success + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  attemptStatusFailed: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.error,
+    backgroundColor: COLORS.error + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  attemptItemDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  attemptItemScore: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontWeight: '600',
+  },
+  attemptItemDate: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  attemptItemCurrent: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  attemptInfoBanner: {
+    backgroundColor: COLORS.primary + '10',
+    padding: 12,
+    margin: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  attemptInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  attemptsRemainingText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  retakeButtonDisabled: {
+    backgroundColor: COLORS.border,
+    opacity: 0.6,
+  },
+  retakeButtonTextDisabled: {
+    opacity: 0.8,
+  },
+  // Mistakes Summary Styles
+  mistakesSummaryContainer: {
+    backgroundColor: COLORS.white,
+    margin: 12,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.error,
+  },
+  mistakesSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mistakesSummaryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  toggleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: COLORS.primary + '20',
+    borderRadius: 6,
+  },
+  toggleButtonText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  mistakesStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  mistakeStatCard: {
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: COLORS.backgroundLight,
+    borderRadius: 8,
+    minWidth: 80,
+  },
+  mistakeStatNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.error,
+    marginBottom: 4,
+  },
+  mistakeStatNumberCorrect: {
+    color: COLORS.success,
+  },
+  mistakeStatLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  incorrectQuestionsList: {
+    marginTop: 8,
+  },
+  incorrectQuestionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  incorrectQuestionsScroll: {
+    maxHeight: 50,
+  },
+  incorrectQuestionBadge: {
+    backgroundColor: COLORS.error + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  incorrectQuestionBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.error,
+  },
+  attemptItemStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  attemptStatBadge: {
+    backgroundColor: COLORS.success + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  attemptStatBadgeError: {
+    backgroundColor: COLORS.error + '20',
+  },
+  attemptStatText: {
+    fontSize: 11,
+    color: COLORS.success,
+    fontWeight: '600',
+  },
+  attemptStatTextError: {
+    color: COLORS.error,
   },
 });
 

@@ -4,6 +4,7 @@ import { Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Auth Screens
 import LoginScreen from './src/screens/auth/LoginScreen';
@@ -184,48 +185,50 @@ function App() {
   };
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator
-        initialRouteName="Login"
-        screenOptions={{
-          headerShown: false,
-        }}>
-        {/* Auth Stack */}
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Registration" component={RegistrationScreen} />
-        <Stack.Screen
-          name="EmailVerification"
-          component={EmailVerificationScreen}
-        />
-        <Stack.Screen
-          name="EmailVerified"
-          component={EmailVerifiedScreen}
-        />
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPasswordScreen}
-        />
-        <Stack.Screen
-          name="ResetPassword"
-          component={ResetPasswordScreen}
-        />
+    <SafeAreaProvider>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator
+          initialRouteName="Login"
+          screenOptions={{
+            headerShown: false,
+          }}>
+          {/* Auth Stack */}
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Registration" component={RegistrationScreen} />
+          <Stack.Screen
+            name="EmailVerification"
+            component={EmailVerificationScreen}
+          />
+          <Stack.Screen
+            name="EmailVerified"
+            component={EmailVerifiedScreen}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+          />
+          <Stack.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+          />
 
-        {/* Main App Stack */}
-        <Stack.Screen name="Drawer" component={DrawerNavigator} />
-        {/* <Stack.Screen name="Home" component={HomeScreen} /> - Replaced by Drawer */}
-        <Stack.Screen name="CourseDetail" component={CourseDetailScreen} />
-        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} />
-        <Stack.Screen 
-          name="PDFViewer" 
-          component={PDFViewerScreen}
-          options={{
-            gestureEnabled: false, // Prevent swipe back during PDF loading
-          }}
-        />
-        <Stack.Screen name="Quiz" component={QuizScreen} />
-        <Stack.Screen name="QuizResults" component={QuizResultsScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+          {/* Main App Stack */}
+          <Stack.Screen name="Drawer" component={DrawerNavigator} />
+          {/* <Stack.Screen name="Home" component={HomeScreen} /> - Replaced by Drawer */}
+          <Stack.Screen name="CourseDetail" component={CourseDetailScreen} />
+          <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} />
+          <Stack.Screen 
+            name="PDFViewer" 
+            component={PDFViewerScreen}
+            options={{
+              gestureEnabled: false, // Prevent swipe back during PDF loading
+            }}
+          />
+          <Stack.Screen name="Quiz" component={QuizScreen} />
+          <Stack.Screen name="QuizResults" component={QuizResultsScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 

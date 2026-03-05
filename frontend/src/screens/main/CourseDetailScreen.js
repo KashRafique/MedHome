@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { getCourseContent } from '../../services/courseService';
-import { getQuizzesByCourse, checkQuizEligibility } from '../../services/quizService';
+import { getQuizzesByCourse, checkQuizEligibility, getUserQuizAttempts } from '../../services/quizService';
 import { getImageUrl } from '../../utils/imageUtils';
 import PaymentModal from '../../components/course/PaymentModal';
 
@@ -174,15 +174,56 @@ const CourseDetailScreen = ({ route, navigation }) => {
       const eligibilityData = eligibility.data || eligibility;
       
       if (!eligibilityData.canTake) {
+        // Check if there are previous attempts
+        let previousAttempts = [];
+        try {
+          const attemptsResponse = await getUserQuizAttempts(quiz._id);
+          previousAttempts = attemptsResponse.data || (Array.isArray(attemptsResponse) ? attemptsResponse : []);
+        } catch (error) {
+          console.error('Error fetching previous attempts:', error);
+        }
+
+        const attemptsRemaining = eligibilityData.attemptsRemaining ?? eligibilityData.data?.attemptsRemaining ?? 0;
+        const maxAttempts = eligibilityData.maxAttempts ?? eligibilityData.data?.maxAttempts ?? 0;
+        const attemptsUsed = maxAttempts - attemptsRemaining;
+
+        // Build message
+        let message = eligibilityData.reason || 'You are not eligible to take this quiz.';
+        
+        if (attemptsUsed > 0 && maxAttempts > 0) {
+          message += `\n\nYou have used ${attemptsUsed} out of ${maxAttempts} attempts.`;
+        }
+
+        // Build alert buttons
+        const alertButtons = [];
+        
+        // Add "Review Previous Attempts" button if attempts exist
+        if (previousAttempts.length > 0) {
+          alertButtons.push({
+            text: `📋 Review Previous Attempts (${previousAttempts.length})`,
+            onPress: () => {
+              // Navigate to the most recent attempt
+              const latestAttempt = previousAttempts[0];
+              navigation.navigate('QuizResults', {
+                attemptId: latestAttempt._id,
+                quizId: quiz._id,
+                courseId: course._id || course.id,
+                courseTitle: course.title,
+              });
+            },
+          });
+        }
+        
+        // Add OK button
+        alertButtons.push({
+          text: 'OK',
+          style: 'cancel',
+        });
+
         Alert.alert(
           'Cannot Take Quiz',
-          eligibilityData.reason || 'You are not eligible to take this quiz.',
-          [
-            {
-              text: 'OK',
-              style: 'cancel',
-            },
-          ]
+          message,
+          alertButtons
         );
         return;
       }

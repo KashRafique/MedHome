@@ -615,6 +615,45 @@ const getQuizStatistics = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+// Get all attempts for a quiz by the current user
+const getUserAttempts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const authReq = req as AuthRequest;
+  if (!authReq.user) {
+    res.status(401).json({ message: 'Authentication required' });
+    return;
+  }
+  try {
+    const { quizId } = req.params;
+    
+    const attempts = await QuizAttempt.find({
+      student: authReq.user._id,
+      quiz: quizId
+    })
+      .populate({
+        path: 'quiz',
+        populate: {
+          path: 'questions',
+          model: 'Question'
+        }
+      })
+      .populate('course')
+      .sort({ attemptNumber: -1 }); // Most recent first
+    
+    res.json({
+      success: true,
+      data: attempts
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error getting user attempts:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error getting user attempts', 
+      error: err.message 
+    });
+  }
+};
+
 // Check quiz eligibility (if user can take the quiz)
 const checkQuizEligibility = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authReq = req as AuthRequest;
@@ -728,6 +767,7 @@ export default {
   startAttempt,
   getAttempt,
   submitAttempt,
+  getUserAttempts,
   getQuizStatistics,
   checkQuizEligibility
 };
