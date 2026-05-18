@@ -35,6 +35,9 @@ local.properties
 !debug.keystore
 keystore.properties
 
+# Local API environment selector (run: node scripts/set-env.js prod)
+src/config/activeEnv.js
+
 # node.js
 #
 node_modules/
