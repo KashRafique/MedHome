@@ -1,6 +1,21 @@
 import api from './api';
 import {API_ENDPOINTS} from '../constants/api';
 
+const getNetworkErrorMessage = error => {
+  if (
+    error.code === 'ECONNREFUSED' ||
+    error.code === 'ERR_NETWORK' ||
+    error.code === 'NETWORK_ERROR' ||
+    error.message === 'Network Error'
+  ) {
+    return 'Cannot connect to server. Please check your internet connection.';
+  }
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  return null;
+};
+
 export const registerUser = async userData => {
   try {
     const response = await api.post(API_ENDPOINTS.REGISTER, userData);
@@ -13,22 +28,11 @@ export const registerUser = async userData => {
       code: error.code,
     });
     
-    // Handle network errors
-    if (error.code === 'ECONNREFUSED' || error.code === 'NETWORK_ERROR') {
-      return {
-        success: false,
-        message: 'Cannot connect to server. Please check your internet connection.',
-      };
+    const networkMessage = getNetworkErrorMessage(error);
+    if (networkMessage) {
+      return {success: false, message: networkMessage};
     }
-    
-    // Handle timeout errors
-    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-      return {
-        success: false,
-        message: 'Request timed out. Please try again.',
-      };
-    }
-    
+
     // Handle validation errors
     if (error.response?.data?.errors) {
       return {
@@ -77,6 +81,16 @@ export const loginUser = async (email, password) => {
     });
     return {success: true, data: response.data};
   } catch (error) {
+    const networkMessage = getNetworkErrorMessage(error);
+    if (networkMessage) {
+      return {success: false, message: networkMessage};
+    }
+    if (!error.response) {
+      return {
+        success: false,
+        message: error.message || 'Login failed. Please try again.',
+      };
+    }
     return {
       success: false,
       message:
