@@ -1,7 +1,8 @@
-package com.frontend
+package com.medhome
 
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.activity.enableEdgeToEdge
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -26,8 +27,9 @@ class MainActivity : ReactActivity() {
       WindowManager.LayoutParams.FLAG_SECURE,
       WindowManager.LayoutParams.FLAG_SECURE
     )
-    
+
     super.onCreate(savedInstanceState)
+    enableEdgeToEdge()
   }
 
   /**

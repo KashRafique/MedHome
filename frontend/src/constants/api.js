@@ -9,5 +9,6 @@ export const API_ENDPOINTS = {
   VERIFY_EMAIL: '/api/auth/verify-email',
   RESEND_OTP: '/api/auth/resend-otp',
   LOGIN: '/api/auth/login',
+  REQUEST_PASSWORD_RESET: '/api/auth/request-password-reset',
 };
 

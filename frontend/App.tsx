@@ -10,6 +10,8 @@ import LoginScreen from './src/screens/auth/LoginScreen';
 import RegistrationScreen from './src/screens/auth/RegistrationScreen';
 import EmailVerificationScreen from './src/screens/auth/EmailVerificationScreen';
 import EmailVerifiedScreen from './src/screens/auth/EmailVerifiedScreen';
+import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
+import CheckEmailScreen from './src/screens/auth/CheckEmailScreen';
 
 // Main Screens
 import HomeScreen from './src/screens/main/HomeScreen';
@@ -110,6 +112,8 @@ function App() {
         }}>
         {/* Auth Stack */}
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="CheckEmail" component={CheckEmailScreen} />
         <Stack.Screen name="Registration" component={RegistrationScreen} />
         <Stack.Screen
           name="EmailVerification"

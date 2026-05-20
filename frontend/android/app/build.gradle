@@ -81,13 +81,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.frontend"
+    namespace "com.medhome"
     defaultConfig {
-        applicationId "com.frontend"
+        applicationId "com.medhome"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 15
+        versionName "1.0.15"
     }
     
     // Build flavors for different environments
@@ -122,6 +122,12 @@ android {
                 storePassword keystoreProperties['MEDHOME_RELEASE_STORE_PASSWORD']
                 keyAlias keystoreProperties['MEDHOME_RELEASE_KEY_ALIAS']
                 keyPassword keystoreProperties['MEDHOME_RELEASE_KEY_PASSWORD']
+            } else {
+                // Local / CI builds without keystore.properties — installable prodRelease APK
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
             }
         }
     }
@@ -143,6 +149,7 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:flipper-integration")
+    implementation("androidx.activity:activity-ktx:1.9.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

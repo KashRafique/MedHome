@@ -14,7 +14,7 @@ const env = process.argv[2] || 'dev';
 const urls = {
   dev: 'http://localhost:5000',
   uat: 'https://uat.medhome.courses',
-  prod: 'https://medhome.courses',
+  prod: 'https://uat.medhome.courses',
 };
 
 if (!Object.keys(urls).includes(env)) {

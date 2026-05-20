@@ -1,6 +1,7 @@
-package com.frontend
+package com.medhome
 
 import android.app.Application
+import com.medhome.BuildConfig
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
