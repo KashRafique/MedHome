@@ -15,7 +15,7 @@ export const ENVIRONMENTS = {
   },
   prod: {
     ENV_NAME: 'production',
-    BASE_URL: 'https://medhome.courses',
-    API_BASE_URL: 'https://medhome.courses/api',
+    BASE_URL: 'https://uat.medhome.courses',
+    API_BASE_URL: 'https://uat.medhome.courses/api',
   },
 };

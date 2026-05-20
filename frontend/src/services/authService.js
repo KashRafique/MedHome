@@ -73,6 +73,26 @@ export const resendOTP = async email => {
   }
 };
 
+export const requestPasswordReset = async email => {
+  try {
+    const response = await api.post(API_ENDPOINTS.REQUEST_PASSWORD_RESET, {
+      email: email.trim().toLowerCase(),
+    });
+    return {success: true, data: response.data};
+  } catch (error) {
+    const networkMessage = getNetworkErrorMessage(error);
+    if (networkMessage) {
+      return {success: false, message: networkMessage};
+    }
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        'Failed to send reset instructions. Please try again.',
+    };
+  }
+};
+
 export const loginUser = async (email, password) => {
   try {
     const response = await api.post(API_ENDPOINTS.LOGIN, {
@@ -112,21 +132,7 @@ export const verifyEmailToken = async token => {
   }
 };
 
-export const requestPasswordReset = async email => {
-  try {
-    const response = await api.post(API_ENDPOINTS.REQUEST_PASSWORD_RESET, {
-      email: email.trim().toLowerCase(),
-    });
-    return {success: true, data: response.data};
-  } catch (error) {
-    return {
-      success: false,
-      message:
-        error.response?.data?.message ||
-        'Failed to request password reset. Please try again.',
-    };
-  }
-};export const resetPassword = async (token, newPassword) => {
+export const resetPassword = async (token, newPassword) => {
   try {
     const response = await api.post(
       `${API_ENDPOINTS.RESET_PASSWORD}/${token}`,

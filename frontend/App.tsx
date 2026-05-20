@@ -12,6 +12,7 @@ import RegistrationScreen from './src/screens/auth/RegistrationScreen';
 import EmailVerificationScreen from './src/screens/auth/EmailVerificationScreen';
 import EmailVerifiedScreen from './src/screens/auth/EmailVerifiedScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
+import CheckEmailScreen from './src/screens/auth/CheckEmailScreen';
 import ResetPasswordScreen from './src/screens/auth/ResetPasswordScreen';
 
 // Main Screens
@@ -207,6 +208,7 @@ function App() {
             name="ForgotPassword"
             component={ForgotPasswordScreen}
           />
+          <Stack.Screen name="CheckEmail" component={CheckEmailScreen} />
           <Stack.Screen
             name="ResetPassword"
             component={ResetPasswordScreen}
